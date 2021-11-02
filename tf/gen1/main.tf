@@ -18,6 +18,9 @@ resource "google_compute_instance" "default" {
       image = "debian-cloud/debian-9"
     }
   }
+  metadata = {
+    ssh-keys = "admin:${file("~/.ssh/id_rsa.pub")}"
+  }
 
 
 // Flask how-to installs
@@ -32,3 +35,8 @@ metadata_startup_script = "sudo apt-get update; sudo apt-get install -yq build-e
     }
   }
 }
+
+output "ip" {
+ value = google_compute_instance.default.network_interface.0.access_config.0.nat_ip
+}
+
