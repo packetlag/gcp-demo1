@@ -1,0 +1,9 @@
+instance_name         = "app-1"
+instance_machine_type = "f1-micro"
+instance_zone         = "us-west1-a"
+instance_image        = "debian-cloud/debian-9"
+subnet_name           = "default"
+external_enabled      = true
+project               = "gcp-demo1-330914"
+region                = "us-west1"
+credentials           = "/Users/admin/Documents/projects/gcp-demo1/gcp-demo1.json"
