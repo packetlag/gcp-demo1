@@ -1,0 +1,881 @@
+GCP-DEMO1 - https://cloud.google.com/community/tutorials/getting-started-on-gcp-with-terraform
+
+Created GitHub repo gcp-demo1
+
+Created GCP project
+Created IAM service account terraform added me as owner and generated a key
+Made main.tf with provider info, terraform init ( used https://cloud.google.com/community/tutorials/getting-started-on-gcp-with-terraform)
+Enabled compute engine API for terraform apply
+Terraform apply still reporting I don't have permission to build compute
+Installed gcloud first with pip3 but then tried curl https://sdk.cloud.google.com | bash
+
+spareChange:~ admin$ gcloud compute instances list 
+ERROR: (gcloud.compute.instances.list) You do not currently have an active account selected.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account:
+
+    $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+spareChange:~ admin$ 
+
+Allowed google sdk gcloud to work with my account
+
+spareChange:~ admin$ gcloud config set project gcp-demo1-330914 
+Updated property [core/project].
+spareChange:~ admin$ gcloud compute instances list 
+NAME        ZONE        MACHINE_TYPE  PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP  STATUS
+instance-1  us-west1-a  e2-medium                  10.138.0.2   35.197.66.6  RUNNING
+
+
+
+ gcloud projects add-iam-policy-binding gcp-demo1-330914 \
+--member serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com \
+--role=roles/compute.admin
+
+
+spareChange:~ admin$  gcloud projects add-iam-policy-binding gcp-demo1-330914 \
+--member serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com \
+--role=roles/compute.admin> --member serviceAccount:terraform@gcp-demo1-33091\.iam.gserviceaccount.com  
+--role=roles/compute.admin> --role=roles/compute.admin
+Updated IAM policy for project [gcp-demo1-330914].
+bindings:
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/compute.admin
+- members:
+  - serviceAccount:service-947335397137@compute-system.iam.gserviceaccount.com
+  role: roles/compute.serviceAgent
+- members:
+  - serviceAccount:947335397137-compute@developer.gserviceaccount.com
+  - serviceAccount:947335397137@cloudservices.gserviceaccount.com
+  role: roles/editor
+- members:
+  - user:alosey@gmail.com
+  role: roles/owner
+etag: BwXP0Z4Kumc=
+version: 1
+spareChange:~ admin$ 
+
+
+Terraform apply worked this time, hosting server app-1 came online
+
+spareChange:~ admin$ gcloud compute instances list 
+NAME        ZONE        MACHINE_TYPE  PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP     STATUS
+app-1       us-west1-a  f1-micro                   10.138.0.3   34.105.102.182  RUNNING
+instance-1  us-west1-a  e2-medium                  10.138.0.2   35.197.66.6     RUNNING
+spareChange:~ admin$ 
+
+Added my ssh key
+
+Copied flask app to /opt/app/app.py
+
+root@app-1:/opt/app# python app.py
+
+admin@app-1:~$ curl http://0.0.0.0:5000
+Hello Worldadmin@app-1:~$ 
+
+Added google compute firewall default rule for 5000 to come through public IP
+
+http://34.105.102.182:5000/
+
+root@app-1:/opt/app# python app.py 
+ * Serving Flask app "app" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+127.0.0.1 - - [02/Nov/2021 17:53:54] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [02/Nov/2021 17:53:57] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [02/Nov/2021 17:53:59] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [02/Nov/2021 17:54:00] "GET / HTTP/1.1" 200 -
+108.56.135.193 - - [02/Nov/2021 17:57:15] "GET / HTTP/1.1" 200 -
+108.56.135.193 - - [02/Nov/2021 17:57:15] "GET /favicon.ico HTTP/1.1" 404 -
+
+###################
+Great, now how do I get state file into GCP?
+###################
+
+https://betterprogramming.pub/effective-ways-of-managing-your-terraform-state-44bc53043d5
+
+terraform.tfvars
+instance_name         = "app-1"
+instance_machine_type = "f1-micro"
+instance_zone         = "us-west1-a"
+instance_image        = "debian-cloud/debian-9"
+subnet_name           = "default"
+external_enabled      = true
+project               = "gcp-demo1-330914"
+region                = "us-west1"
+credentials           = "/Users/admin/Documents/projects/gcp-demo1/gcp-demo1.json"
+
+provider "google" {
+  credentials = file(var.credentials)
+  project     = var.project
+  region      = var.region
+}
+
+provider "google" {
+  credentials = file("/Users/admin/Documents/projects/gcp-demo1/gcp-demo1.json")
+  project     = "gcp-demo1-330914"
+  region      = "us-west1"
+}
+
+
+Terraform needed to terraform init the backend.tf, but didn't have access to:
+Initializing the backend...
+╷
+│ Error: Error inspecting states in the "gcs" backend:
+│     querying Cloud Storage failed: googleapi: Error 403: terraform@gcp-demo1-330914.iam.gserviceaccount.com does not have storage.objects.list access to the Google Cloud Storage bucket., forbidden
+│ 
+
+spareChange:~ admin$ gcloud projects add-iam-policy-binding gcp-demo1-330914 --member serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com --role=roles/storage.admin  
+Updated IAM policy for project [gcp-demo1-330914].
+bindings:
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/compute.admin
+- members:
+  - serviceAccount:service-947335397137@compute-system.iam.gserviceaccount.com
+  role: roles/compute.serviceAgent
+- members:
+  - serviceAccount:947335397137-compute@developer.gserviceaccount.com
+  - serviceAccount:947335397137@cloudservices.gserviceaccount.com
+  role: roles/editor
+- members:
+  - user:alosey@gmail.com
+  role: roles/owner
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/storage.admin
+etag: BwXP0xkIuHE=
+version: 1
+spareChange:~ admin$ 
+
+
+spareChange:gen1 admin$ gcloud projects add-iam-policy-binding gcp-demo1-330914 --member serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com --role=roles/storage.object.admin
+ERROR: Policy modification failed. For a binding with condition, run "gcloud alpha iam policies lint-condition" to identify issues in condition.
+ERROR: (gcloud.projects.add-iam-policy-binding) INVALID_ARGUMENT: Role roles/storage.object.admin is not supported for this resource.
+^^^^
+But I freakin added it in the console ...
+
+
+Here we go, it's "storage.objectAdmin"
+
+spareChange:gen1 admin$ gcloud projects add-iam-policy-binding gcp-demo1-330914 --member serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com --role=roles/storage.objectAdmin
+Updated IAM policy for project [gcp-demo1-330914].
+bindings:
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/compute.admin
+- members:
+  - serviceAccount:service-947335397137@compute-system.iam.gserviceaccount.com
+  role: roles/compute.serviceAgent
+- members:
+  - serviceAccount:947335397137-compute@developer.gserviceaccount.com
+  - serviceAccount:947335397137@cloudservices.gserviceaccount.com
+  role: roles/editor
+- members:
+  - user:alosey@gmail.com
+  role: roles/owner
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/storage.admin
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/storage.objectAdmin
+etag: BwXP02JBiZE=
+version: 1
+spareChange:gen1 admin$ 
+
+
+  Enter a value: yes
+
+google_compute_instance.default: Modifying... [id=projects/gcp-demo1-330914/zones/us-west1-a/instances/app-1]
+╷
+│ Error: Error waiting for updating service account: The user does not have access to service account '947335397137-compute@developer.gserviceaccount.com'.  User: 'terraform@gcp-demo1-330914.iam.gserviceaccount.com'.  Ask a project owner to grant you the iam.serviceAccountUser role on the service account
+
+I had to go into IAM, find 947335397137-compute@developer.gserviceaccount.com service user, give terraform@gcp-demo1-330914.iam.gserviceaccount.com  editor roll access to that compute service user.
+
+  Enter a value: yes
+
+google_compute_instance.default: Modifying... [id=projects/gcp-demo1-330914/zones/us-west1-a/instances/app-1]
+google_compute_instance.default: Modifications complete after 3s [id=projects/gcp-demo1-330914/zones/us-west1-a/instances/app-1]
+
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+
+Outputs:
+
+ip = ""
+
+
+Server was off
+
+spareChange:gen1 admin$ terraform apply
+google_compute_firewall.default: Refreshing state... [id=projects/gcp-demo1-330914/global/firewalls/gcp-demo1-firewall]
+google_compute_instance.default: Refreshing state... [id=projects/gcp-demo1-330914/zones/us-west1-a/instances/app-1]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration and found no differences, so no changes are needed.
+
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+ip = "34.105.102.182"
+
+
+
+##########################################
+
+Manually created Cloud Storage bucket gcp-demo1-state
+
+Created backend.tf
+terraform {
+  backend "gcs"{
+    bucket      = "gcp-demo1-state"
+    prefix      = "app1"
+    credentials = "/Users/admin/Documents/projects/gcp-demo1/gcp-demo1.json"
+  }
+}
+
+Terraform init worked
+
+app1/default.tfstate showed up.
+Terraform plan says no change.
+
+
+########################################
+
+Let's get a DB up and running with Google Cloud SQL
+
+https://medium.com/google-cloud/how-to-create-cloudsql-mysql-instance-with-terraform-e87a396b2b58
+
+gcloud projects add-iam-policy-binding gcp-demo1-330914 --member serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com --role=roles/cloudsql.admin
+
+spareChange:gen1 admin$ gcloud projects add-iam-policy-binding gcp-demo1-330914 --member serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com --role=roles/cloudsql.admin
+Updated IAM policy for project [gcp-demo1-330914].
+bindings:
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/cloudsql.admin
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/compute.admin
+- members:
+  - serviceAccount:service-947335397137@compute-system.iam.gserviceaccount.com
+  role: roles/compute.serviceAgent
+- members:
+  - serviceAccount:947335397137-compute@developer.gserviceaccount.com
+  - serviceAccount:947335397137@cloudservices.gserviceaccount.com
+  role: roles/editor
+- members:
+  - user:alosey@gmail.com
+  role: roles/owner
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/storage.admin
+- members:
+  - serviceAccount:terraform@gcp-demo1-330914.iam.gserviceaccount.com
+  role: roles/storage.objectAdmin
+etag: BwXP1Lo8q-c=
+version: 1
+spareChange:gen1 admin$ 
+
+
+  Enter a value: yes
+
+google_sql_database_instance.master: Creating...
+╷
+│ Error: Error, failed to create instance gcp-demo1-sql: googleapi: Error 403: Cloud SQL Admin API has not been used in project 947335397137 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/sqladmin.googleapis.com/overview?project=947335397137 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry., accessNotConfigured
+
+
+Followed URL and enabled SQL Admin API
+
+
+
+
+  Enter a value: yes
+
+google_sql_database_instance.master: Creating...
+google_sql_database_instance.master: Still creating... [10s elapsed]
+google_sql_database_instance.master: Still creating... [20s elapsed]
+google_sql_database_instance.master: Still creating... [30s elapsed]
+google_sql_database_instance.master: Still creating... [40s elapsed]
+google_sql_database_instance.master: Still creating... [50s elapsed]
+google_sql_database_instance.master: Still creating... [1m0s elapsed]
+google_sql_database_instance.master: Still creating... [1m10s elapsed]
+google_sql_database_instance.master: Still creating... [1m20s elapsed]
+...
+google_sql_database_instance.master: Still creating... [4m20s elapsed]
+google_sql_database_instance.master: Still creating... [4m30s elapsed]
+google_sql_database_instance.master: Still creating... [4m40s elapsed]
+google_sql_database_instance.master: Creation complete after 4m46s [id=gcp-demo1-sql]
+google_sql_database.database: Creating...
+google_sql_user.users: Creating...
+google_sql_database.database: Creation complete after 5s [id=projects/gcp-demo1-330914/instances/gcp-demo1-sql/databases/app1-sql]
+google_sql_user.users: Creation complete after 10s [id=root/%/gcp-demo1-sql]
+Releasing state lock. This may take a few moments...
+
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+ip = "35.197.66.6"
+spareChange:gen1 admin$ 
+
+
+
+BUT THE DATABASE IP IS:
+gcp-demo1-sql - 104.198.6.12
+
+
+
+Need to add key:value to db...
+Started with installing mysql-client on app server..
+Switched to the cloud shell button thingy:
+
+Welcome to Cloud Shell! Type "help" to get started.
+gcloud sql connect gcp-demo1-sql --user=root --quiet
+Your Cloud Platform project in this session is set to gcp-demo1-330914.
+Use “gcloud config set project [PROJECT_ID]” to change to a different project.
+alosey@cloudshell:~ (gcp-demo1-330914)$ gcloud sql connect gcp-demo1-sql --user=root --quiets
+
+
+https://devhints.io/mysql
+https://www.tutorialspoint.com/mysql/mysql-create-tables.htm
+
+
+mysql> SHOW DATABASES;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| app1-sql           |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+
+mysql> USE app1-sql
+Database changed
+mysql> SHOW TABLES;
+Empty set (0.07 sec)
+
+mysql> CREATE TABLE demo1 (response_key VARCHAR(32), response_value VARCHAR(32));
+Query OK, 0 rows affected (0.09 sec)
+
+mysql> SHOW TABLES;
++--------------------+
+| Tables_in_app1-sql |
++--------------------+
+| demo1              |
++--------------------+
+1 row in set (0.07 sec)
+
+mysql> SHOW FIELDS FROM demo1
+    -> ;
++----------------+-------------+------+-----+---------+-------+
+| Field          | Type        | Null | Key | Default | Extra |
++----------------+-------------+------+-----+---------+-------+
+| response_key   | varchar(32) | YES  |     | NULL    |       |
+| response_value | varchar(32) | YES  |     | NULL    |       |
++----------------+-------------+------+-----+---------+-------+
+2 rows in set (0.07 sec)
+
+
+
+mysql> UPDATE demo1 SET response_value="Hello World"
+    -> ;
+Query OK, 0 rows affected (0.07 sec)
+Rows matched: 0  Changed: 0  Warnings: 0
+
+mysql> SHOW FIELDS FROM demo1;
++----------------+-------------+------+-----+---------+-------+
+| Field          | Type        | Null | Key | Default | Extra |
++----------------+-------------+------+-----+---------+-------+
+| response_key   | varchar(32) | YES  |     | NULL    |       |
+| response_value | varchar(32) | YES  |     | NULL    |       |
++----------------+-------------+------+-----+---------+-------+
+2 rows in set (0.07 sec)
+
+mysql> ALTER TABLE demo1 MODIFY response_value Hello
+    -> ;
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'Hello' at line 1
+mysql> ALTER TABLE demo1 MODIFY response_value Hello
+
+
+Can't modify tables for some reason. cant add columns.
+Let's try Google Firestore, noSQL key:value db
+https://cloud.google.com/datastore/docs/firestore-or-datastore
+NAH FUCK THAT
+
+
+mysql> GRANT ALL PRIVILEGES ON *.* TO 'root'@'%';
+Query OK, 0 rows affected (0.07 sec)
+
+mysql>
+
+mysql> CREATE DATABASE geography;
+Query OK, 1 row affected (0.06 sec)
+
+mysql> use geography;
+Database changed
+mysql> create table cities (city VARCHAR(255), country VARCHAR(255));
+Query OK, 0 rows affected (0.08 sec)
+
+mysql> insert into cities (city, country) values ("San Francisco", "USA");
+Query OK, 1 row affected (0.07 sec)
+
+mysql> insert into cities (city, country) values ("Beijing", "China");
+Query OK, 1 row affected (0.07 sec)
+
+mysql> select * FROM cities;
++---------------+---------+
+| city          | country |
++---------------+---------+
+| San Francisco | USA     |
+| Beijing       | China   |
++---------------+---------+
+2 rows in set (0.07 sec)
+
+mysql>
+
+
+mysql> use app1-sql
+Reading table information for completion of table and column names
+You can turn off this feature to get a quicker startup with -A
+
+Database changed
+mysql> show tables
+    -> ;
++--------------------+
+| Tables_in_app1-sql |
++--------------------+
+| demo1              |
++--------------------+
+1 row in set (0.07 sec)
+
+mysql> select * from demo1
+    -> ;
+Empty set (0.07 sec)
+
+mysql> select * from demo1
+    -> ;
+Empty set (0.07 sec)
+
+mysql> describe demo1
+    -> ;
++----------------+-------------+------+-----+---------+-------+
+| Field          | Type        | Null | Key | Default | Extra |
++----------------+-------------+------+-----+---------+-------+
+| response_key   | varchar(32) | YES  |     | NULL    |       |
+| response_value | varchar(32) | YES  |     | NULL    |       |
++----------------+-------------+------+-----+---------+-------+
+2 rows in set (0.07 sec)
+
+mysql> insert into demo1 (response_key, response_value) values ("Hello World", "Hello There");
+Query OK, 1 row affected (0.07 sec)
+
+mysql> select * from demo1
+    -> ;
++--------------+----------------+
+| response_key | response_value |
++--------------+----------------+
+| Hello World  | Hello There    |
++--------------+----------------+
+1 row in set (0.07 sec)
+
+
+Gave VM a static IP - 35.197.66.6 
+
+
+Added network 35.197.66.6/32 as green listed network to hit CloudSQL 104.198.6.12
+
+SUCCESS!!
+
+admin@app-1:~$ mysql --host=104.198.6.12 --user=root --password
+Enter password: 
+Welcome to the MariaDB monitor.  Commands end with ; or \g.
+Your MySQL connection id is 11175
+Server version: 5.7.34-google (Google)
+
+Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+MySQL [(none)]> show databases
+    -> ;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| app1-sql           |
+| geography          |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+6 rows in set (0.00 sec)
+
+
+
+admin@app-1:/opt/app$ pip install pypyodbc
+Collecting pypyodbc
+  Downloading https://files.pythonhosted.org/packages/ea/48/bb5412846df5b8f97d42ac24ac36a6b77a802c2778e217adc0d3ec1ee7bf/pypyodbc-1.3.5.2.zip
+Collecting setuptools (from pypyodbc)
+  Downloading https://files.pythonhosted.org/packages/e1/b7/182161210a13158cd3ccc41ee19aadef54496b74f2817cc147006ec932b4/setuptools-44.1.1-py2.py3-none-any.whl (583kB)
+    100% |████████████████████████████████| 583kB 1.8MB/s 
+Building wheels for collected packages: pypyodbc
+  Running setup.py bdist_wheel for pypyodbc ... done
+  Stored in directory: /home/admin/.cache/pip/wheels/e4/92/18/b21aa15a7e8915859a6fc10206cdd7f5d9ac098a523b9738c6
+Successfully built pypyodbc
+Installing collected packages: setuptools, pypyodbc
+Successfully installed pypyodbc-1.3.4 setuptools-44.1.1
+admin@app-1:/opt/app$ 
+
+
+admin@app-1:/opt/app$ ls
+app.py  helloworld.py
+admin@app-1:/opt/app$ python helloworld.py
+Traceback (most recent call last):
+  File "helloworld.py", line 3, in <module>
+    from FlaskWebProject7 import app    
+ImportError: No module named FlaskWebProject7
+admin@app-1:/opt/app$ pip install FlaskWebProject7
+
+admin@app-1:/opt/app$ pip install flask
+Collecting flask
+  Downloading https:/
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+NAH - we need serverless
+
+Cloud Spanner with Cloud Functions
+
+https://cloud.google.com/functions/docs/tutorials/use-cloud-spanner#functions-calling-spanner-python
+https://cloud.google.com/spanner/docs/quickstart-console
+https://cloud.google.com/python/docs/setup
+
+Enabled Cloud Spanner API
+
+
+
+spareChange:gcp-demo1 admin$ cd scripts/                                              
+spareChange:scripts admin$ ls                                                         
+README.md       apps                                                                  
+spareChange:scripts admin$ ls apps/                                                   
+app.py                                                                                
+spareChange:scripts admin$ mkdir cloudfun                                             
+spareChange:scripts admin$ cd cloudfun/                                               
+spareChange:cloudfun admin$ ls                                                        
+spareChange:cloudfun admin$ python -m venv env                                        
+spareChange:cloudfun admin$ source env/bin/activate                                   
+(env) spareChange:cloudfun admin$ pip install google-cloud-storage                    
+Collecting google-cloud-storage                                                       
+  Downloading google_cloud_storage-1.42.3-py2.py3-none-any.whl (105 kB)               
+     |████████████████████████████████| 105 kB 4.0 MB/s       
+
+(env) spareChange:~ admin$ cd from_git/python-docs-samples/spanner/
+(env) spareChange:spanner admin$ glcoud functions deploy spanner_read_data --runtime python39 --trigger-http
+-bash: glcoud: command not found
+(env) spareChange:spanner admin$ gcloud functions deploy spanner_read_data --runtime python39 --trigger-http
+API [cloudfunctions.googleapis.com] not enabled on project [947335397137]. Would you 
+like to enable and retry (this will take a few minutes)? (y/N)?  y
+
+Enabling service [cloudfunctions.googleapis.com] on project [947335397137]...
+Operation "operations/acf.p2-947335397137-28f3813f-dad0-427f-9d64-2bb6bb965ef0" finished successfully.
+
+Allow unauthenticated invocations of new function [spanner_read_data]? (y/N)?  y
+
+Deploying function (may take a while - up to 2 minutes)...failed.                    
+ERROR: (gcloud.functions.deploy) OperationError: code=7, message=Build failed: Cloud Build API has not been used in project 947335397137 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/cloudbuild.googleapis.com/overview?project=947335397137 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
+(env) spareChange:spanner admin$ 
+
+Enabled Cloud Build API
+
+(env) spareChange:spanner admin$ cd ../functions/spanner/
+(env) spareChange:spanner admin$ ls
+README.md               main_test.py            requirements.txt
+main.py                 requirements-test.txt
+
+(env) spareChange:spanner admin$ gcloud functions deploy spanner_read_data --runtime python39 --trigger-http
+Deploying function (may take a while - up to 2 minutes)...⠛                          
+For Cloud Build Logs, visit: https://console.cloud.google.com/cloud-build/builds;region=us-central1/189f619c-8805-4608-8f8d-de2056383c1a?project=947335397137
+Deploying function (may take a while - up to 2 minutes)...⠼                          
+─────────────────────────────────────────────────────────────
+Deploying function (may take a while - up to 2 minutes)...done.                      
+availableMemoryMb: 256
+buildId: 01d05b1c-ac98-4790-9cf7-410d43365b26
+buildName: projects/947335397137/locations/us-central1/builds/01d05b1c-ac98-4790-9cf7-410d43365b26
+entryPoint: spanner_read_data
+httpsTrigger:
+  securityLevel: SECURE_OPTIONAL
+  url: https://us-central1-gcp-demo1-330914.cloudfunctions.net/spanner_read_data
+ingressSettings: ALLOW_ALL
+labels:
+  deployment-tool: cli-gcloud
+name: projects/gcp-demo1-330914/locations/us-central1/functions/spanner_read_data
+runtime: python39
+serviceAccountEmail: gcp-demo1-330914@appspot.gserviceaccount.com
+sourceUploadUrl: https://storage.googleapis.com/gcf-upload-us-central1-cbd8b041-a061-44a1-9751-658d61661767/fa659f5a-29e5-4f9b-a50f-fc69d86e0990.zip
+status: ACTIVE
+timeout: 60s
+updateTime: '2021-11-03T12:12:43.741Z'
+versionId: '3'
+(env) spareChange:spanner admin$ 
+
+Needs to be curl "https://us-central1-gcp-demo1-330914.cloudfunctions.net/spanner_read_data"
+
+(env) spareChange:spanner admin$ curl "https://us-west1-gcp-demo1.cloudfunctions.net/spanner_read_data"
+<!DOCTYPE html>
+<html lang=en>
+  <meta charset=utf-8>
+  <meta name=viewport content="initial-scale=1, minimum-scale=1, width=device-width">
+  <title>Error 404 (Page not found)!!1</title>
+  <style>
+    *{margin:0;padding:0}html,code{font:15px/22px arial,sans-serif}html{background:#fff;color:#222;padding:15px}body{margin:7% auto 0;max-width:390px;min-height:180px;padding:30px 0 15px}* > body{background:url(//www.google.com/images/errors/robot.png) 100% 5px no-repeat;padding-right:205px}p{margin:11px 0 22px;overflow:hidden}ins{color:#777;text-decoration:none}a img{border:0}@media screen and (max-width:772px){body{background:none;margin-top:0;max-width:none;padding-right:0}}#logo{background:url(//www.google.com/images/branding/googlelogo/1x/googlelogo_color_150x54dp.png) no-repeat;margin-left:-5px}@media only screen and (min-resolution:192dpi){#logo{background:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) no-repeat 0% 0%/100% 100%;-moz-border-image:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) 0}}@media only screen and (-webkit-min-device-pixel-ratio:2){#logo{background:url(//www.google.com/images/branding/googlelogo/2x/googlelogo_color_150x54dp.png) no-repeat;-webkit-background-size:100% 100%}}#logo{display:inline-block;height:54px;width:150px}
+  </style>
+  <a href=//www.google.com/><span id=logo aria-label=Google></span></a>
+  <p><b>404.</b> <ins>That’s an error.</ins>
+  <p>The requested URL was not found on this server.  <ins>That’s all we know.</ins>
+(env) spareChange:spanner admin$ 
+
+
+
+(env) spareChange:spanner admin$ curl "https://us-central1-gcp-demo1-330914.cloudfunctions.net/spanner_read_data"
+Error: could not handle the request
+(env) spareChange:spanner admin$ 
+
+
+
+TRY WORKING THIS TO FIX - One tutorial didn't match another
+https://cloud.google.com/spanner/docs/getting-started/python
+
+
+spareChange:from_git admin$ git clone https://github.com/googleapis/python-spanner
+Cloning into 'python-spanner'...
+remote: Enumerating objects: 6913, done.
+remote: Counting objects: 100% (777/777), done.
+remote: Compressing objects: 100% (395/395), done.
+remote: Total 6913 (delta 431), reused 659 (delta 355), pack-reused 6136
+Receiving objects: 100% (6913/6913), 4.16 MiB | 4.20 MiB/s, done.
+Resolving deltas: 100% (4376/4376), done.
+spareChange:from_git admin$ cd python-spanner/samples/samples/
+spareChange:samples admin$ ls
+README.rst              backup_sample_test.py   quickstart_test.py
+README.rst.in           batch_sample.py         requirements-test.txt
+autocommit.py           conftest.py             requirements.txt
+autocommit_test.py      noxfile.py              snippets.py
+backup_sample.py        quickstart.py           snippets_test.py
+spareChange:samples admin$ python -m venv env
+spareChange:samples admin$ source env/bin/activate
+(env) spareChange:samples admin$ pip install -r requirements.txt 
+
+Deleted old DB first
+
+(env) spareChange:samples admin$ gcloud spanner instances create test-instance --config=regional-us-central1     --description="Test Instance" --nodes=1
+Creating instance...done.                                                            
+(env) spareChange:samples admin$ 
+
+
+
+
+import os
+from google.oauth2 import service_account
+
+credentials = service_account.Credentials.from_service_account_file("/Users/admin/Documents/projects/gcp-demo1/gcp-demo1.json")
+client = language.LanguageServiceClient(credentials=credentials)
+
+
+CREATE TABLE Singers (
+  SingerId   INT64 NOT NULL,
+  FirstName  STRING(1024),
+  LastName   STRING(1024),
+  SingerInfo BYTES(MAX)
+) PRIMARY KEY(SingerId);
+
+CREATE TABLE Albums (
+  SingerId   INT64 NOT NULL,
+  AlbumId    INT64 NOT NULL,
+  AlbumTitle STRING(1024),
+) PRIMARY KEY(SingerId);
+
+
+NOW WORKS AFTER POPULATING Albums and Singers tables properly.
+https://us-central1-gcp-demo1-330914.cloudfunctions.net/spanner_read_data
+SingerId: 1, AlbumId: 101, AlbumTitle: Nevermind
+
+
+####################################
+####################################
+####################################
+
+
+TO MAKE THIS WORK I NEED>...
+
+Cloudfunction using "spanner_read_data"
+Modify spanner_read_data to read HELLO WORLD Cloud Store
+
+Cloudstore gcp-demo1
+Primary_Key - value1 = Hello World
+
+
+GCP SPANNER
+-Create Instance
+Instance Name = gcp-demo1-alpha
+Instance ID = gcp-demo1-alpha
+Compute = 100 (not 1000)
+
+-Create Database
+Database name = gcp-demo1-db
+
+-Create Table
+Define schema
+CREATE TABLE demo1 (
+  value1  STRING(1024),
+) PRIMARY KEY(value1);
+
+-Insert Data
+  -- Add new values in the VALUES clause in order of the column list.
+  -- Each value must be type compatible with its associated column.
+INSERT INTO
+  demo1 (value1)
+VALUES
+  ('Hello World' -- type: STRING(1024)
+    );
+  -- Change values in the WHERE condition to match the inserted row.
+SELECT
+  *
+FROM
+  demo1
+WHERE
+  value1='Hello World';
+
+-Run QUERY on demo1
+SELECT * FROM demo1
+value1
+	
+Hello World 
+
+-Cloud Functions With Spanner
+Source material comes from git clone https://github.com/GoogleCloudPlatform/python-docs-samples.git and https://cloud.google.com/functions/docs/tutorials/use-cloud-spanner#functions-clone-sample-repository-python
+
+-Setup venv
+
+python -m venv env                                        
+source env/bin/activate  
+spareChange:spanner admin$ ls
+README.md               main_test.py            requirements.txt
+main.py                 requirements-test.txt
+python -m venv env
+source env/bin/activate
+pip install -r requirements.txt 
+pip install --upgrade pip
+
+-Modify main.py with this Instance/DB ID and to select the demo1 table: value1
+
+-Deploy function
+gcloud functions deploy spanner_read_data \
+--runtime python39 --trigger-http
+
+
+
+Deploying function (may take a while - up to 2 minutes)...⠛                                                       
+For Cloud Build Logs, visit: https://console.cloud.google.com/cloud-build/builds;region=us-central1/fd257f3c-6230-40c3-93cc-259b5e6ea79d?project=947335397137
+Deploying function (may take a while - up to 2 minutes)...done.                                                   
+availableMemoryMb: 256
+buildId: fd257f3c-6230-40c3-93cc-259b5e6ea79d
+buildName: projects/947335397137/locations/us-central1/builds/fd257f3c-6230-40c3-93cc-259b5e6ea79d
+entryPoint: spanner_read_data
+httpsTrigger:
+  securityLevel: SECURE_OPTIONAL
+  url: https://us-central1-gcp-demo1-330914.cloudfunctions.net/spanner_read_data
+ingressSettings: ALLOW_ALL
+labels:
+  deployment-tool: cli-gcloud
+name: projects/gcp-demo1-330914/locations/us-central1/functions/spanner_read_data
+runtime: python39
+serviceAccountEmail: gcp-demo1-330914@appspot.gserviceaccount.com
+sourceUploadUrl: https://storage.googleapis.com/gcf-upload-us-central1-cbd8b041-a061-44a1-9751-658d61661767/0feef991-cd91-4267-9570-120f3e6be394.zip
+status: ACTIVE
+timeout: 60s
+updateTime: '2021-11-03T14:28:28.206Z'
+versionId: '4'
+(env) spareChange:spanner admin$ 
+
+-Test result url - IT WORKS!
+https://us-central1-gcp-demo1-330914.cloudfunctions.net/spanner_read_data
+value1: Hello World
+
+-Modify function to only print "Hello World"
+            output = 'value1: {}'.format(*row)
+TO
+            output = '{}'.format(*row)
+
+-Test result url - IT WORKS!
+https://us-central1-gcp-demo1-330914.cloudfunctions.net/spanner_read_data
+Hello World
+
+
+
+####################################
+####################################
+####################################
+
+Google Cloud's operations suite provides logging and monitoring tools that help you understand what is happening in your functions.
+
+-Monitoring - Metrics Scope - gcp-demo1 - gcp-demo1-330914
+-Alerting
+-Edit Notification channels
++email and SMS
+-Create Policy
+
+
+
+####################################
+####################################
+####################################
+
+https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/spanner_instance
+
+
+#############################
+
+Final function deployment
+
+(env) spareChange:spanner-beta admin$ gcloud functions deploy spanner_hello_world --runtime python39 --trigger-http 
+Allow unauthenticated invocations of new function [spanner_hello_world]? (y/N)?  y
+
+Deploying function (may take a while - up to 2 minutes)...⠹                                                       
+For Cloud Build Logs, visit: https://console.cloud.google.com/cloud-build/builds;region=us-central1/403db2f9-2b24-4039-9147-d57a45753be7?project=947335397137
+Deploying function (may take a while - up to 2 minutes)...done.                                                   
+availableMemoryMb: 256
+buildId: 403db2f9-2b24-4039-9147-d57a45753be7
+buildName: projects/947335397137/locations/us-central1/builds/403db2f9-2b24-4039-9147-d57a45753be7
+entryPoint: spanner_hello_world
+httpsTrigger:
+  securityLevel: SECURE_OPTIONAL
+  url: https://us-central1-gcp-demo1-330914.cloudfunctions.net/spanner_hello_world
+ingressSettings: ALLOW_ALL
+labels:
+  deployment-tool: cli-gcloud
+name: projects/gcp-demo1-330914/locations/us-central1/functions/spanner_hello_world
+runtime: python39
+serviceAccountEmail: gcp-demo1-330914@appspot.gserviceaccount.com
+sourceUploadUrl: https://storage.googleapis.com/gcf-upload-us-central1-cbd8b041-a061-44a1-9751-658d61661767/10c16d87-4398-4b7f-8ab4-d430d81f359d.zip
+status: ACTIVE
+timeout: 60s
+updateTime: '2021-11-03T22:49:40.854Z'
+versionId: '1'
+(env) spareChange:spanner-beta admin$ 
