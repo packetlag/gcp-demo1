@@ -4,6 +4,12 @@ resource "google_sql_database_instance" "master" {
   region = var.region
   settings {
     tier = "db-n1-standard-2"
+    ip_configuration {
+      authorized_networks {
+        name  = "gcp-demo1-green-list"
+        value = "35.197.66.6/32"
+      }
+    }
   }
 }
 
