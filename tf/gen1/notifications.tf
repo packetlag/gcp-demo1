@@ -3,7 +3,7 @@ resource "google_monitoring_notification_channel" "default" {
   type         = "email"
   project      = "gcp-demo1-330914"
   labels = {
-    email_address = "aclosey@gmail.com"
+    email_address = "alosey@gmail.com"
   }
 }
 
